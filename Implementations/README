@@ -1,96 +1,48 @@
-# Implementations README
-
-This directory contains the implementation code for the Rhyme signature algorithm.
+# Implementations — Rhyme-SHAKE
 
 ## Directory Structure
 
 ```
 Implementations/
 ├── Reference_Implementation/
-│   ├── Rhyme-128/
-│   ├── Rhyme-256/
-│   ├── Rhyme-384/
-│   └── Rhyme-512/
+│   ├── Rhyme-SHAKE-128/   (portable C99, SHAKE backend)
+│   ├── Rhyme-SHAKE-256/
+│   ├── Rhyme-SHAKE-384/
+│   └── Rhyme-SHAKE-512/
 ├── Optimized_Implementation/
-│   ├── Rhyme-128/
-│   ├── Rhyme-256/
-│   ├── Rhyme-384/
-│   └── Rhyme-512/
+│   ├── Rhyme-SHAKE-128/   (-march=native, DP1 fast-keygen target)
+│   ├── Rhyme-SHAKE-256/
+│   ├── Rhyme-SHAKE-384/
+│   ├── Rhyme-SHAKE-512/
+│   └── README
 ├── Additional_Implementation/
 │   └── README
 └── README
 ```
 
-## Directory Description
+## Reference_Implementation
 
-`Reference_Implementation/` contains the reference (portable) implementation of Rhyme.
-Built with `-DRHYME_NO_AES`, it uses pure SHAKE-based symmetric primitives and
-has no platform-specific instruction requirements.
+Portable C99, `-DRHYME_NO_AES`.  Hash/XOF: SHAKE-128/256 via `fips202.c`.
+Wrapper layer: `rhyme_xof.c/h`.
 
-`Optimized_Implementation/` contains the optimized implementation for mainstream
-64-bit PC platforms (x86-64 with AES-NI and SSSE3).  It uses AES-256-CTR via
-AES-NI intrinsics for all expansion and sampling streams, which provides
-substantially faster signing.
+## Optimized_Implementation
 
-`Additional_Implementation/` is reserved for additional platform-specific
-implementations. No additional implementation is included.
+`-O3 -march=native`.  Two targets:
 
-## Common File Description
+| Target | Binary | KAT vs Reference |
+|--------|--------|-----------------|
+| `make` | `KAT_SIG` | byte-identical |
+| `make fast` | `KAT_SIG_FAST` | differs (DP1, valid) |
 
-`api.h`: public API parameters and byte lengths (includes params.h and sign.h).
+DP1 uses a truncated-minor coprimality check for ~8-14x faster keygen
+at higher security levels.  All signatures self-verify.
 
-`SIG_AlgorithmInstance.c/h`: API_PKC-compatible wrapper for key generation, signing,
-and verification. These translate between the API_PKC `sig_*` interface and
-Rhyme's native `crypto_sign_*` functions.
+## Common Files
 
-`KAT_SIG.c`: known-answer test driver for the signature algorithm.  Generates
-10 deterministic KAT vectors using the SM3-based DRNG.
-
-`drng.c/h`: SM3-based deterministic random number generator used by the KAT driver
-and to seed key generation.
-
-`randombytes.c`: DRNG-backed replacement for the system `/dev/urandom` randombytes,
-ensuring deterministic KAT output.
-
-`auxfunc.c/h`: auxiliary functions from the API_PKC template.
-
-`include/`: public headers and parameter definitions (params.h, config.h, sign.h,
-symmetric.h, etc.).
-
-`src/`: core Rhyme implementation source files.
-
-`Makefile`: build script for the instance.
-
-## Instances
-
-Rhyme has four parameter sets (security levels), selected via `-DRHYME_MODE`:
-
-| Instance    | Mode | N    | Q     | K | L | Security (bits) |
-|-------------|------|------|-------|---|---|-----------------|
-| Rhyme-128   | 128  | 256  | 3329  | 2 | 3 | 128             |
-| Rhyme-256   | 256  | 512  | 9473  | 2 | 3 | 256             |
-| Rhyme-384   | 384  | 512  | 11777 | 3 | 4 | 384             |
-| Rhyme-512   | 512  | 1024 | 18433 | 2 | 3 | 512             |
-
-## Build and Run
-
-Run the reference KAT:
-
-```bash
-cd Reference_Implementation/Rhyme-128
-make clean
-make
-./KAT_SIG
-```
-
-Run the optimized KAT:
-
-```bash
-cd Optimized_Implementation/Rhyme-128
-make clean
-make
-./KAT_SIG
-```
-
-The Optimized build requires AES-NI and SSSE3 support (`-maes -mssse3`).
-The Reference build has no platform-specific requirements.
+`api.h` — public API parameters
+`SIG_AlgorithmInstance.c/h` — API_PKC SIG wrapper
+`KAT_SIG.c` — KAT driver
+`auxfunc.c/h`, `drng.c/h` — API_PKC no-modify files (byte-identical to template)
+`rhyme_xof.c/h` — Rhyme-specific Hash/XOF wrappers
+`include/` — public headers
+`src/` — core algorithm implementation

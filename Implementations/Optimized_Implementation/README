@@ -1,0 +1,23 @@
+# Rhyme-SHAKE Optimized Implementation
+
+## Targets
+
+- `make` → `KAT_SIG` — default optimized build, KAT byte-identical to Reference
+- `make fast` → `KAT_SIG_FAST` — USE_DP1_CHECK enabled for faster key generation
+
+## KAT Compatibility
+
+The default target (`make`) produces KAT output byte-identical to the Reference
+implementation test vectors.
+
+The fast target (`make fast`) enables `-DUSE_DP1_CHECK` which uses a faster
+coprimality test during key generation.  This may produce a different valid
+secret basis, resulting in different KAT bytes.  However, all generated
+signatures self-verify correctly, and the algorithm semantics are unchanged.
+
+## DP1 Fast Keygen
+
+`USE_DP1_CHECK` switches the keygen solver from the default order-(D-1) minor
+descent to an order-d "truncated tail columns" coprimality check.  Per the
+source code, this is a "sound sufficient test (monotone gcd ideal)" that
+provides approximately 8-14x keygen speedup for higher security levels.
