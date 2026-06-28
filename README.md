@@ -1,4 +1,4 @@
-# Rhyme-SHAKE Signature Submission Package
+# Rhyme-SHAKE Signature
 
 SHAKE-backend implementation of the Rhyme signature algorithm —
 reference and optimized — for the Next-generation Commercial
