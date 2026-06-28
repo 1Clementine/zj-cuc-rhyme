@@ -1,4 +1,4 @@
-# Rhyme-SM3 Signature Submission Package
+# Rhyme-SM3 Signature
 
 SM3-backend implementation of the Rhyme signature algorithm —
 reference and optimized — for the Next-generation Commercial
