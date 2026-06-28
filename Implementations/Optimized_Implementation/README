@@ -1,0 +1,21 @@
+# Rhyme-SM3 Optimized Implementation
+
+## Optimizations
+
+1. **Incremental SM3-XOF** — block-by-block SM3-KDF generation via `sm3hash()`,
+   avoiding repeated `pseudoXOF()` calls.  KAT byte-identical to Reference.
+
+2. **DP1 Fast Keygen** — `make fast` target enables `-DUSE_DP1_CHECK` for
+   faster key generation (8-14x speedup at higher security levels).
+
+## Targets
+
+- `make` → `KAT_SIG` — KAT byte-identical to Reference
+- `make fast` → `KAT_SIG_FAST` — USE_DP1_CHECK enabled
+
+## KAT Compatibility
+
+The default target produces KAT byte-identical to the Reference test vectors.
+
+The fast target may produce different KAT bytes (different valid secret basis),
+but all generated signatures self-verify correctly.

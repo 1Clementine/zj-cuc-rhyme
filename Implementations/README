@@ -1,96 +1,53 @@
-# Implementations README
-
-This directory contains the implementation code for the Rhyme signature algorithm.
+# Implementations — Rhyme-SM3
 
 ## Directory Structure
 
 ```
 Implementations/
 ├── Reference_Implementation/
-│   ├── Rhyme-128/
-│   ├── Rhyme-256/
-│   ├── Rhyme-384/
-│   └── Rhyme-512/
+│   ├── Rhyme-SM3-128/   (portable C99, SM3 backend)
+│   ├── Rhyme-SM3-256/
+│   ├── Rhyme-SM3-384/
+│   └── Rhyme-SM3-512/
 ├── Optimized_Implementation/
-│   ├── Rhyme-128/
-│   ├── Rhyme-256/
-│   ├── Rhyme-384/
-│   └── Rhyme-512/
+│   ├── Rhyme-SM3-128/   (-march=native, incremental SM3-XOF, DP1 target)
+│   ├── Rhyme-SM3-256/
+│   ├── Rhyme-SM3-384/
+│   ├── Rhyme-SM3-512/
+│   └── README
 ├── Additional_Implementation/
 │   └── README
 └── README
 ```
 
-## Directory Description
+## Reference_Implementation
 
-`Reference_Implementation/` contains the reference (portable) implementation of Rhyme.
-Built with `-DRHYME_NO_AES`, it uses pure SHAKE-based symmetric primitives and
-has no platform-specific instruction requirements.
+Portable C99, `-DRHYME_NO_AES`.  Hash/XOF: SM3/SM3-KDF via `sm3_xof.c` →
+API_PKC `pseudoXOF()`.  Wrapper layer: `rhyme_xof.c/h`.  No fips202.
 
-`Optimized_Implementation/` contains the optimized implementation for mainstream
-64-bit PC platforms (x86-64 with AES-NI and SSSE3).  It uses AES-256-CTR via
-AES-NI intrinsics for all expansion and sampling streams, which provides
-substantially faster signing.
+## Optimized_Implementation
 
-`Additional_Implementation/` is reserved for additional platform-specific
-implementations. No additional implementation is included.
+`-O3 -march=native`.  Two optimizations:
 
-## Common File Description
+1. **Incremental SM3-XOF** — block-by-block generation via `sm3hash()`.
+   KAT byte-identical to Reference.
 
-`api.h`: public API parameters and byte lengths (includes params.h and sign.h).
+2. **DP1 Fast Keygen** (`make fast`) — truncated-minor coprimality check.
+   ~8-14x faster keygen; KAT differs but signatures self-verify.
 
-`SIG_AlgorithmInstance.c/h`: API_PKC-compatible wrapper for key generation, signing,
-and verification. These translate between the API_PKC `sig_*` interface and
-Rhyme's native `crypto_sign_*` functions.
+| Target | Binary | KAT vs Reference |
+|--------|--------|-----------------|
+| `make` | `KAT_SIG` | byte-identical |
+| `make fast` | `KAT_SIG_FAST` | differs (DP1, valid) |
 
-`KAT_SIG.c`: known-answer test driver for the signature algorithm.  Generates
-10 deterministic KAT vectors using the SM3-based DRNG.
+## Common Files
 
-`drng.c/h`: SM3-based deterministic random number generator used by the KAT driver
-and to seed key generation.
-
-`randombytes.c`: DRNG-backed replacement for the system `/dev/urandom` randombytes,
-ensuring deterministic KAT output.
-
-`auxfunc.c/h`: auxiliary functions from the API_PKC template.
-
-`include/`: public headers and parameter definitions (params.h, config.h, sign.h,
-symmetric.h, etc.).
-
-`src/`: core Rhyme implementation source files.
-
-`Makefile`: build script for the instance.
-
-## Instances
-
-Rhyme has four parameter sets (security levels), selected via `-DRHYME_MODE`:
-
-| Instance    | Mode | N    | Q     | K | L | Security (bits) |
-|-------------|------|------|-------|---|---|-----------------|
-| Rhyme-128   | 128  | 256  | 3329  | 2 | 3 | 128             |
-| Rhyme-256   | 256  | 512  | 9473  | 2 | 3 | 256             |
-| Rhyme-384   | 384  | 512  | 11777 | 3 | 4 | 384             |
-| Rhyme-512   | 512  | 1024 | 18433 | 2 | 3 | 512             |
-
-## Build and Run
-
-Run the reference KAT:
-
-```bash
-cd Reference_Implementation/Rhyme-128
-make clean
-make
-./KAT_SIG
-```
-
-Run the optimized KAT:
-
-```bash
-cd Optimized_Implementation/Rhyme-128
-make clean
-make
-./KAT_SIG
-```
-
-The Optimized build requires AES-NI and SSSE3 support (`-maes -mssse3`).
-The Reference build has no platform-specific requirements.
+`api.h` — public API parameters
+`SIG_AlgorithmInstance.c/h` — API_PKC SIG wrapper
+`KAT_SIG.c` — KAT driver
+`auxfunc.c/h`, `drng.c/h` — API_PKC no-modify files (byte-identical to template)
+`rhyme_xof.c/h` — Rhyme-specific Hash/XOF wrappers (SM3 backend)
+`sm3_xof.c/h` — SM3-XOF state machine
+`sm3.c/h` — thin wrappers over API_PKC sm3hash/pseudoXOF
+`include/` — public headers
+`src/` — core algorithm implementation (no fips202)
