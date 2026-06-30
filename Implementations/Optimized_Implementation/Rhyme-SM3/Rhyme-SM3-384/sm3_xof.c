@@ -65,43 +65,59 @@ static void state_absorb(sm3_xof_state *s, const uint8_t *in, size_t inlen)
 
 static int xof_generate(sm3_xof_state *s, size_t need_bytes)
 {
-    size_t   need_blocks = (need_bytes + 31) / 32;   /* 32 = SM3_OUTLEN */
-    size_t   alloc_bytes = need_blocks * 32;          /* whole SM3 blocks */
-    uint8_t  tag         = (s->mode == 0) ? TAG_XOF128 : TAG_XOF256;
-    size_t   msg_bytes   = s->inlen + 1;               /* +1 for tag */
-    uint64_t cascade_bits;                             /* set below */
+    size_t  need_blocks = (need_bytes + 31) / 32;
+    size_t  alloc_bytes = need_blocks * 32;
+    uint8_t tag         = (s->mode == 0) ? TAG_XOF128 : TAG_XOF256;
+    size_t  msg_bytes   = s->inlen + 1;
 
-    /* All our inputs are byte-aligned: msg_len_bits = msg_bytes * 8.
-     * pseudoXOF's byte-aligned path appends 4 counter bytes and hashes
-     * (msg_bytes * 8 + 32) bits. */
-    cascade_bits = (uint64_t)(msg_bytes * 8 + 32);
-
-    /* Grow cache to hold full SM3 blocks (alloc_bytes ≥ need_bytes). */
     if (alloc_bytes > s->cache_len) {
         uint8_t *bigger = (uint8_t *)realloc(s->cache, alloc_bytes);
         if (!bigger) return -1;
         s->cache = bigger;
     }
 
+    uint8_t prefix[SM3_XOF_CASCADE_MAX];
+    prefix[0] = tag;
+    if (s->inlen > 0)
+        memcpy(prefix + 1, s->input, s->inlen);
+
+#ifdef USE_AVX2_SM3
     while (s->xof_ctr < need_blocks) {
-        uint8_t  cascade[SM3_XOF_CASCADE_MAX];
-        uint32_t ct = s->xof_ctr + 1;   /* 1-based per GB/T 32918.4 */
+        unsigned char lanes[8][32];
+        size_t remaining = need_blocks - s->xof_ctr;
+        unsigned int take = remaining < 8 ? (unsigned int)remaining : 8;
 
-        /* cascade = tag || absorbed_msg || ct_be32 */
-        cascade[0] = tag;
-        if (s->inlen > 0)
-            memcpy(cascade + 1, s->input, s->inlen);
-        cascade[msg_bytes]     = (uint8_t)(ct >> 24);
-        cascade[msg_bytes + 1] = (uint8_t)(ct >> 16);
-        cascade[msg_bytes + 2] = (uint8_t)(ct >>  8);
-        cascade[msg_bytes + 3] = (uint8_t)(ct);
+        rhyme_sm3_xof_batch8(lanes, prefix, msg_bytes,
+                              (unsigned int)(s->xof_ctr + 1));
 
-        /* sm3hash(256, …) ≡ sm3_bit(…) — same function pseudoXOF calls */
-        (void)sm3hash(256, cascade, cascade_bits,
-                      s->cache + s->xof_ctr * 32);
+        for (unsigned int lane = 0; lane < take; lane++) {
+            memcpy(s->cache + (s->xof_ctr + lane) * 32,
+                   lanes[lane], 32);
+        }
 
-        s->xof_ctr++;
+        s->xof_ctr += take;
     }
+#else
+    {
+        const uint64_t cascade_bits = (uint64_t)(msg_bytes * 8 + 32);
+
+        while (s->xof_ctr < need_blocks) {
+            uint8_t cascade[SM3_XOF_CASCADE_MAX];
+            uint32_t ct = s->xof_ctr + 1;
+
+            memcpy(cascade, prefix, msg_bytes);
+            cascade[msg_bytes]     = (uint8_t)(ct >> 24);
+            cascade[msg_bytes + 1] = (uint8_t)(ct >> 16);
+            cascade[msg_bytes + 2] = (uint8_t)(ct >> 8);
+            cascade[msg_bytes + 3] = (uint8_t)ct;
+
+            (void)sm3hash(256, cascade, cascade_bits,
+                          s->cache + s->xof_ctr * 32);
+
+            s->xof_ctr++;
+        }
+    }
+#endif
 
     s->cache_len = alloc_bytes;
     return 0;

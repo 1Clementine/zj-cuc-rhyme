@@ -13,7 +13,6 @@ CFLAGS  ?= -O3 -march=native -std=c99 -Wall -Wextra -I. -Iinclude -Isrc/keygen \
            -DRHYME_NO_AES \
            -DRHYME_MODE=$(MODE) \
            -DOUTPUT_BLANK_TEST_VECTORS=0 \
-           -DUSE_DP1_CHECK \
            -DALGORITHM_INSTANCE='"$(INST)"'
 LDLIBS   = -lm
 

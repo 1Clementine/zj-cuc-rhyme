@@ -5,6 +5,10 @@
 
 void sm3(uint8_t out[SM3_OUTLEN], const uint8_t *in, size_t inlen)
 {
+#ifdef USE_AVX2_SM3
+    if (rhyme_sm3_hash_avx2(out, in, (unsigned long long)inlen * 8ULL) == 0)
+        return;
+#endif
     (void)sm3hash(256, in, (unsigned long long)inlen * 8ULL, out);
 }
 
